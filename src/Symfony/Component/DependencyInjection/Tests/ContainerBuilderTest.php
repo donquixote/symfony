@@ -15,6 +15,7 @@ require_once __DIR__.'/Fixtures/includes/autowiring_classes.php';
 require_once __DIR__.'/Fixtures/includes/classes.php';
 require_once __DIR__.'/Fixtures/includes/ProjectExtension.php';
 
+use Composer\Autoload\ClassLoader;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface as PsrContainerInterface;
 use Symfony\Bridge\PhpUnit\ExpectDeprecationTrait;
@@ -49,6 +50,7 @@ use Symfony\Component\DependencyInjection\Tests\Compiler\Wither;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CaseSensitiveClass;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\CustomDefinition;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\FooWithAbstractArgument;
+use Symfony\Component\DependencyInjection\Tests\Fixtures\Prototype\FooInterface;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\ScalarFactory;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\SimilarArgumentsDummy;
 use Symfony\Component\DependencyInjection\Tests\Fixtures\WitherStaticReturnType;
@@ -983,6 +985,52 @@ class ContainerBuilderTest extends TestCase
 
         $this->assertSame('reflection.BarClass', (string) $resources[0]);
         $this->assertSame('BarMissingClass', (string) end($resources));
+    }
+
+    public function testGetReflectionClassOnInterfaceWithoutConfigPackage(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setResourceTracking(false);
+
+        // Manipulate the class loader, to simulate 'symfony/config' missing.
+        /** @var ClassLoader $class_loader */
+        $class_loader = spl_autoload_functions()[0][0];
+        $rp = new \ReflectionProperty(ClassLoader::class, 'prefixDirsPsr4');
+        $psr4 = $psr4_orig = $rp->getValue($class_loader);
+        unset($psr4['Symfony\\Component\\']);
+        $rp->setValue($class_loader, $psr4);
+        try {
+            $r1 = $container->getReflectionClass(FooInterface::class);
+        }
+        finally {
+            // Restore the original class loader.
+            $rp->setValue($class_loader, $psr4_orig);
+        }
+        $this->assertNull($r1);
+        $this->assertInstanceOf(\ReflectionClass::class, $r1);
+    }
+
+    public function testGetReflectionClassOnInterfaceWithConfigPackage(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setResourceTracking(false);
+
+        // Manipulate the class loader, to simulate 'symfony/config' missing.
+        /** @var ClassLoader $class_loader */
+        $class_loader = spl_autoload_functions()[0][0];
+        $rp = new \ReflectionProperty(ClassLoader::class, 'prefixDirsPsr4');
+        $psr4 = $psr4_orig = $rp->getValue($class_loader);
+        unset($psr4['Symfony\\Component\\']);
+        $rp->setValue($class_loader, $psr4);
+        try {
+            $r1 = $container->getReflectionClass(FooInterface::class);
+        }
+        finally {
+            // Restore the original class loader.
+            $rp->setValue($class_loader, $psr4_orig);
+        }
+        $this->assertNull($r1);
+        $this->assertInstanceOf(\ReflectionClass::class, $r1);
     }
 
     public function testGetReflectionClassOnInternalTypes()
